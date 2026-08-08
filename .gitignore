@@ -28,6 +28,11 @@ Thumbs.db
 *.onnx
 *.bin
 
+# Dataset artifacts
+data/raw/
+data/processed/
+data/tokenized/
+
 # Experiment outputs
 experiments/runs/
 experiments/logs/

@@ -1,0 +1,5 @@
+{"id":"001","text":"The Earth orbits the Sun. This motion takes approximately one year.","domain":"science","source":"synthetic"}
+{"id":"002","text":"A variable stores a value that can change during program execution.","domain":"programming","source":"synthetic"}
+{"id":"003","text":"If a triangle has sides 3, 4, and 5, it is a right triangle.","domain":"mathematics","source":"synthetic"}
+{"id":"004","text":"Photosynthesis allows plants to convert light energy into chemical energy.","domain":"biology","source":"synthetic"}
+{"id":"005","text":"A binary search repeatedly divides a sorted search space into smaller regions.","domain":"algorithms","source":"synthetic"}
