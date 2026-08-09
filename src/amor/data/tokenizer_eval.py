@@ -5,12 +5,12 @@ from tokenizers import models
 from tokenizers import normalizers
 from tokenizers import pre_tokenizers
 from tokenizers import trainers
-from tokenizers import decoders
 
 from .tokenizer_config import VOCAB_SIZE, SPECIAL_TOKENS
 
 
 def create_tokenizer() -> tuple[Tokenizer, trainers.BpeTrainer]:
+
     tokenizer = Tokenizer(
         models.BPE(
             unk_token="<unk>",
@@ -28,8 +28,6 @@ def create_tokenizer() -> tuple[Tokenizer, trainers.BpeTrainer]:
         add_prefix_space=False
     )
 
-    tokenizer.decoder = decoders.ByteLevel()
-
     trainer = trainers.BpeTrainer(
         vocab_size=VOCAB_SIZE,
         special_tokens=SPECIAL_TOKENS,
@@ -43,6 +41,7 @@ def train_tokenizer(
     input_files: list[str],
     output_path: str,
 ) -> None:
+
     tokenizer, trainer = create_tokenizer()
 
     tokenizer.train(

@@ -1,0 +1,5 @@
+The Earth orbits the Sun. This motion takes approximately one year.
+A variable stores a value that can change during program execution.
+If a triangle has sides 3, 4, and 5, it is a right triangle.
+Photosynthesis allows plants to convert light energy into chemical energy.
+A binary search repeatedly divides a sorted search space into smaller regions.
