@@ -1,27 +1,33 @@
 # Python
+
 __pycache__/
 *.py[cod]
 *.pyo
 
 # Virtual environment
+
 .venv/
 venv/
 env/
 
 # Environment variables
+
 .env
 .env.*
 !.env.example
 
 # IDE
+
 .vscode/
 .idea/
 
 # OS
+
 .DS_Store
 Thumbs.db
 
 # ML artifacts
+
 *.pt
 *.pth
 *.safetensors
@@ -29,20 +35,30 @@ Thumbs.db
 *.bin
 
 # Dataset artifacts
-data/raw/
+
+# Ignore contents of raw datasets by default
+data/raw/*
 data/processed/
 data/tokenized/
 
+# Keep the reproducible AMOR 100K dataset snapshot
+!data/raw/amor_100k/
+!data/raw/amor_100k/corpus.jsonl
+!data/raw/amor_100k/manifest.json
+
 # Experiment outputs
+
 experiments/runs/
 experiments/logs/
 
 # Personal AI data
+
 data/personal/
 data/memory/
 data/user_state/
 
 # Secrets
+
 *.key
 *.pem
 *.secret

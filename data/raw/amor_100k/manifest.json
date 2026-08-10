@@ -1,0 +1,57 @@
+{
+  "corpus_name": "AMOR-100K-corpus",
+  "target_tokens": 100000,
+  "actual_tokens": 99954,
+  "documents": 181,
+  "tokenizer": {
+    "path": "data/tokenizer/amor_tokenizer.json",
+    "vocab_size": 32000
+  },
+  "sources": [
+    {
+      "dataset_name": "fineweb",
+      "dataset_id": "HuggingFaceFW/fineweb",
+      "config": "sample-10BT",
+      "split": "train",
+      "target_tokens": 50000,
+      "documents": 85,
+      "actual_tokens": 49990
+    },
+    {
+      "dataset_name": "fineweb_edu",
+      "dataset_id": "HuggingFaceFW/fineweb-edu",
+      "config": "default",
+      "split": "train",
+      "target_tokens": 16667,
+      "documents": 18,
+      "actual_tokens": 16661
+    },
+    {
+      "dataset_name": "stackv2",
+      "dataset_id": "common-pile/stackv2_edu_filtered",
+      "config": "default",
+      "split": "train",
+      "target_tokens": 16667,
+      "documents": 26,
+      "actual_tokens": 16661
+    },
+    {
+      "dataset_name": "finemath",
+      "dataset_id": "HuggingFaceTB/finemath",
+      "config": "finemath-4plus",
+      "split": "train",
+      "target_tokens": 8333,
+      "documents": 18,
+      "actual_tokens": 8315
+    },
+    {
+      "dataset_name": "aya",
+      "dataset_id": "CohereLabs/aya_dataset",
+      "config": "default",
+      "split": "train",
+      "target_tokens": 8333,
+      "documents": 34,
+      "actual_tokens": 8327
+    }
+  ]
+}

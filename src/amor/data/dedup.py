@@ -1,26 +1,66 @@
+from collections.abc import Iterable, Iterator
 import hashlib
 
 
-def document_hash(text: str) -> str:
+def text_hash(text: str) -> str:
+    """
+    Return a deterministic SHA-256 hash for text.
+    """
+
+    if not isinstance(text, str):
+        raise TypeError(
+            "text must be a string."
+        )
+
     return hashlib.sha256(
         text.encode("utf-8")
     ).hexdigest()
 
 
-def deduplicate_documents(
-    documents: list[dict],
-) -> list[dict]:
+def deduplicate_records(
+    records: Iterable[dict],
+) -> tuple[Iterator[dict], dict]:
+    """
+    Remove exact duplicate documents.
 
-    seen = set()
-    unique_documents = []
+    The first occurrence of each unique document
+    is retained.
 
-    for document in documents:
-        fingerprint = document_hash(document["text"])
+    The returned statistics dictionary is updated
+    as the iterator is consumed.
+    """
 
-        if fingerprint in seen:
-            continue
+    seen: set[str] = set()
 
-        seen.add(fingerprint)
-        unique_documents.append(document)
+    stats = {
+        "total_records": 0,
+        "unique_records": 0,
+        "duplicate_records": 0,
+    }
 
-    return unique_documents
+    def generate() -> Iterator[dict]:
+        for record in records:
+            stats["total_records"] += 1
+
+            text = record.get("text", "")
+
+            if not isinstance(text, str):
+                stats["duplicate_records"] += 1
+                continue
+
+            digest = text_hash(text)
+
+            if digest in seen:
+                stats["duplicate_records"] += 1
+                continue
+
+            seen.add(digest)
+
+            stats["unique_records"] += 1
+
+            output = dict(record)
+            output["text_hash"] = digest
+
+            yield output
+
+    return generate(), stats
