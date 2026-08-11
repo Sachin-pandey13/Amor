@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 import torch
 from torch.utils.data import DataLoader, random_split
@@ -34,6 +35,13 @@ CHECKPOINT_PATH = (
     ROOT
     / "checkpoints"
     / "amor_100k_long.pt"
+)
+
+METRICS_PATH = (
+    ROOT
+    / "experiments"
+    / "runs"
+    / "amor_100k_long_metrics.json"
 )
 
 
@@ -111,6 +119,9 @@ def main() -> None:
     gradient_accumulation_steps = 4
     use_amp = True
 
+    # Evaluate validation loss every N training steps.
+    eval_interval = 100
+
     set_seed(seed)
 
     # ---------------------------------------------------------
@@ -154,6 +165,7 @@ def main() -> None:
         f"{gradient_accumulation_steps}"
     )
     print(f"AMP enabled:                 {use_amp}")
+    print(f"Evaluation interval:         {eval_interval}")
 
     # ---------------------------------------------------------
     # 1. Encode corpus
@@ -314,16 +326,69 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # 7. Training
+    # 7. Training with periodic validation
     # ---------------------------------------------------------
 
     print("\n[7/8] Running long training...")
     print("-" * 70)
 
-    results = trainer.train(
-        dataloader=train_loader,
-        max_steps=max_steps,
-    )
+    results = []
+
+    metrics = []
+
+    best_validation_loss = float("inf")
+    best_step = 0
+
+    train_iterator = iter(train_loader)
+
+    while trainer.step_count < max_steps:
+
+        try:
+            batch = next(train_iterator)
+        except StopIteration:
+            train_iterator = iter(train_loader)
+            batch = next(train_iterator)
+
+        result = trainer.train_step(batch)
+
+        results.append(result)
+
+        # -----------------------------------------------------
+        # Periodic validation
+        # -----------------------------------------------------
+
+        if trainer.step_count % eval_interval == 0:
+
+            validation_loss = evaluate(
+                model=model,
+                dataloader=validation_loader,
+                device=device,
+            )
+
+            metrics.append(
+                {
+                    "step": trainer.step_count,
+                    "train_loss": result.loss,
+                    "validation_loss": validation_loss,
+                    "learning_rate": result.learning_rate,
+                }
+            )
+
+            print(
+                f"Step {trainer.step_count:04d} | "
+                f"Train Loss: {result.loss:.6f} | "
+                f"Validation Loss: {validation_loss:.6f} | "
+                f"LR: {result.learning_rate:.8f}"
+            )
+
+            if validation_loss < best_validation_loss:
+                best_validation_loss = validation_loss
+                best_step = trainer.step_count
+
+                print(
+                    f"  -> New best validation loss: "
+                    f"{best_validation_loss:.6f}"
+                )
 
     print("\nTraining complete.")
 
@@ -337,21 +402,65 @@ def main() -> None:
         f"{results[-1].loss:.6f}"
     )
 
+    print(
+        f"Best validation loss: "
+        f"{best_validation_loss:.6f}"
+    )
+
+    print(
+        f"Best validation step: "
+        f"{best_step}"
+    )
+
     # ---------------------------------------------------------
-    # Validation
+    # Save metrics
     # ---------------------------------------------------------
 
-    print("\n[8/8] Running validation...")
+    print("\nSaving training metrics...")
 
-    validation_loss = evaluate(
+    METRICS_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    metrics_payload = {
+        "experiment": "AMOR-100K-long",
+        "metrics": metrics,
+        "best_validation_loss": best_validation_loss,
+        "best_step": best_step,
+        "final_training_loss": results[-1].loss,
+        "final_step": trainer.step_count,
+    }
+
+    with METRICS_PATH.open(
+        "w",
+        encoding="utf-8",
+    ) as file:
+        json.dump(
+            metrics_payload,
+            file,
+            indent=2,
+        )
+
+    print(
+        f"Metrics: {METRICS_PATH}"
+    )
+
+    # ---------------------------------------------------------
+    # 8. Final validation
+    # ---------------------------------------------------------
+
+    print("\n[8/8] Running final validation...")
+
+    final_validation_loss = evaluate(
         model=model,
         dataloader=validation_loader,
         device=device,
     )
 
     print(
-        f"Validation loss: "
-        f"{validation_loss:.6f}"
+        f"Final validation loss: "
+        f"{final_validation_loss:.6f}"
     )
 
     # ---------------------------------------------------------
@@ -384,7 +493,10 @@ def main() -> None:
             "use_amp": use_amp,
             "seed": seed,
             "model_parameters": parameter_count,
-            "validation_loss": validation_loss,
+            "evaluation_interval": eval_interval,
+            "best_validation_loss": best_validation_loss,
+            "best_validation_step": best_step,
+            "final_validation_loss": final_validation_loss,
         },
     )
 
@@ -393,7 +505,7 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # Final validation
+    # Final validation checks
     # ---------------------------------------------------------
 
     if len(results) != max_steps:
@@ -407,8 +519,13 @@ def main() -> None:
             "Trainer step count is incorrect."
         )
 
+    if not metrics:
+        raise RuntimeError(
+            "No validation metrics were recorded."
+        )
+
     if not torch.isfinite(
-        torch.tensor(validation_loss)
+        torch.tensor(final_validation_loss)
     ):
         raise RuntimeError(
             "Validation loss is not finite."
@@ -417,6 +534,11 @@ def main() -> None:
     if not CHECKPOINT_PATH.exists():
         raise RuntimeError(
             "Checkpoint was not created."
+        )
+
+    if not METRICS_PATH.exists():
+        raise RuntimeError(
+            "Metrics file was not created."
         )
 
     print("\n" + "=" * 70)
