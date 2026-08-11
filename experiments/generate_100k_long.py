@@ -183,10 +183,10 @@ def main() -> None:
         f"{metadata['step']}"
     )
 
-    if metadata["step"] != 100:
+    if metadata["step"] != 1000:
         raise RuntimeError(
-            "Expected checkpoint at training step 100."
-        )
+        "Expected checkpoint at training step 1000."
+    )
 
     # ---------------------------------------------------------
     # 5. Generate text
