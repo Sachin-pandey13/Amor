@@ -33,6 +33,7 @@ def create_tokenizer() -> tuple[Tokenizer, trainers.BpeTrainer]:
     trainer = trainers.BpeTrainer(
         vocab_size=VOCAB_SIZE,
         special_tokens=SPECIAL_TOKENS,
+        initial_alphabet=pre_tokenizers.ByteLevel.alphabet(),
         show_progress=True,
     )
 
