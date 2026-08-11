@@ -67,7 +67,7 @@ def main() -> None:
         max_seq_len=128,
     )
 
-    model = AMORModel(config)
+    model = AMORModel(config).to(device)
 
     # ---------------------------------------------------------
     # 3. Recreate optimizer + scheduler
