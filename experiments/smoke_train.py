@@ -17,8 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS_PATH = (
     ROOT
     / "data"
-    / "processed"
-    / "smoke_corpus_v2.jsonl"
+    / "raw"
+    / "smoke_corpus.jsonl"
 )
 
 TOKENIZER_PATH = (
