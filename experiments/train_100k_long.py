@@ -341,6 +341,11 @@ def main() -> None:
 
     train_iterator = iter(train_loader)
 
+    # Track the last completed optimizer step so that
+    # gradient accumulation does not produce duplicate
+    # validation records.
+    last_recorded_step = -1
+
     while trainer.step_count < max_steps:
 
         try:
@@ -351,44 +356,57 @@ def main() -> None:
 
         result = trainer.train_step(batch)
 
-        results.append(result)
+        current_step = trainer.step_count
 
-        # -----------------------------------------------------
-        # Periodic validation
-        # -----------------------------------------------------
+        # Only record completed optimizer steps.
+        # With gradient accumulation, multiple micro-batches
+        # may be processed before step_count changes.
+        if current_step != last_recorded_step:
 
-        if trainer.step_count % eval_interval == 0:
+            last_recorded_step = current_step
 
-            validation_loss = evaluate(
-                model=model,
-                dataloader=validation_loader,
-                device=device,
-            )
+            # Ignore the initial accumulation state.
+            if current_step == 0:
+                continue
 
-            metrics.append(
-                {
-                    "step": trainer.step_count,
-                    "train_loss": result.loss,
-                    "validation_loss": validation_loss,
-                    "learning_rate": result.learning_rate,
-                }
-            )
+            results.append(result)
 
-            print(
-                f"Step {trainer.step_count:04d} | "
-                f"Train Loss: {result.loss:.6f} | "
-                f"Validation Loss: {validation_loss:.6f} | "
-                f"LR: {result.learning_rate:.8f}"
-            )
+            # -------------------------------------------------
+            # Periodic validation
+            # -------------------------------------------------
 
-            if validation_loss < best_validation_loss:
-                best_validation_loss = validation_loss
-                best_step = trainer.step_count
+            if current_step % eval_interval == 0:
+
+                validation_loss = evaluate(
+                    model=model,
+                    dataloader=validation_loader,
+                    device=device,
+                )
+
+                metrics.append(
+                    {
+                        "step": current_step,
+                        "train_loss": result.loss,
+                        "validation_loss": validation_loss,
+                        "learning_rate": result.learning_rate,
+                    }
+                )
 
                 print(
-                    f"  -> New best validation loss: "
-                    f"{best_validation_loss:.6f}"
+                    f"Step {current_step:04d} | "
+                    f"Train Loss: {result.loss:.6f} | "
+                    f"Validation Loss: {validation_loss:.6f} | "
+                    f"LR: {result.learning_rate:.8f}"
                 )
+
+                if validation_loss < best_validation_loss:
+                    best_validation_loss = validation_loss
+                    best_step = current_step
+
+                    print(
+                        f"  -> New best validation loss: "
+                        f"{best_validation_loss:.6f}"
+                    )
 
     print("\nTraining complete.")
 
@@ -508,7 +526,7 @@ def main() -> None:
     # Final validation checks
     # ---------------------------------------------------------
 
-    if len(results) != max_steps:
+    if trainer.step_count != max_steps:
         raise RuntimeError(
             "Training did not complete "
             "the requested number of steps."
