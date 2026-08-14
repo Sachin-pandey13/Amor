@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CHECKPOINT_PATH = (
     ROOT
     / "checkpoints"
-    / "amor_500k_long.pt"
+    / "amor_1m_long.pt"
 )
 
 TOKENIZER_PATH = (
@@ -84,7 +84,7 @@ def generate(
 def main() -> None:
 
     print("=" * 70)
-    print("AMOR 500K TEXT GENERATION TEST")
+    print("AMOR 1M TEXT GENERATION TEST")
     print("=" * 70)
 
     # ---------------------------------------------------------
