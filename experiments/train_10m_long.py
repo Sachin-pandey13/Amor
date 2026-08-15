@@ -20,7 +20,7 @@ CORPUS_PATH = (
     ROOT
     / "data"
     / "raw"
-    / "amor_1m"
+    / "amor_10m"
     / "corpus.jsonl"
 )
 
@@ -34,14 +34,14 @@ TOKENIZER_PATH = (
 CHECKPOINT_PATH = (
     ROOT
     / "checkpoints"
-    / "amor_1m_long.pt"
+    / "amor_10m_long.pt"
 )
 
 METRICS_PATH = (
     ROOT
     / "experiments"
     / "runs"
-    / "amor_1m_long_metrics.json"
+    / "amor_10m_long_metrics.json"
 )
 
 
@@ -104,7 +104,7 @@ def main() -> None:
 
     print("=" * 70)
     print(
-        "AMOR 1M LONG TRAINING EXPERIMENT"
+        "AMOR 10M LONG TRAINING EXPERIMENT"
     )
     print("=" * 70)
 
@@ -121,14 +121,14 @@ def main() -> None:
     min_learning_rate = 3e-5
     weight_decay = 0.1
 
-    max_steps = 1_000
+    max_steps = 10_000
     warmup_steps = 100
 
     gradient_clip_norm = 1.0
     gradient_accumulation_steps = 4
     use_amp = True
 
-    eval_interval = 100
+    eval_interval = 500
 
     set_seed(seed)
 
@@ -558,7 +558,7 @@ def main() -> None:
 
     metrics_payload = {
         "experiment": (
-            "AMOR-1M-long"
+            "AMOR-10M-long"
         ),
         "metrics": metrics,
         "best_validation_loss": (
@@ -623,10 +623,10 @@ def main() -> None:
         step=trainer.step_count,
         config={
             "experiment": (
-                "AMOR-1M-long"
+                "AMOR-10M-long"
             ),
             "corpus": (
-                "AMOR-1M-corpus"
+                "AMOR-10M-corpus"
             ),
             "token_count": len(
                 token_ids
@@ -732,7 +732,7 @@ def main() -> None:
     )
 
     print(
-        "AMOR 1M LONG TRAINING PASSED"
+        "AMOR 10M LONG TRAINING PASSED"
     )
 
     print(
