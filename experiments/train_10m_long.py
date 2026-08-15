@@ -1,12 +1,17 @@
-from pathlib import Path
+from __future__ import annotations
+
 import json
+from pathlib import Path
 
 import torch
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 
 from src.amor.brain.config import AMORConfig
 from src.amor.brain.model import AMORModel
-from src.amor.data.training_dataset import encode_jsonl_corpus
+from src.amor.data.training_dataset import (
+    load_jsonl_documents,
+    encode_documents,
+)
 from src.amor.training.checkpoint import save_checkpoint
 from src.amor.training.dataset import TokenSequenceDataset
 from src.amor.training.optimizer import create_optimizer
@@ -16,6 +21,7 @@ from src.amor.training.trainer import Trainer
 
 ROOT = Path(__file__).resolve().parents[1]
 
+
 CORPUS_PATH = (
     ROOT
     / "data"
@@ -24,6 +30,7 @@ CORPUS_PATH = (
     / "corpus.jsonl"
 )
 
+
 TOKENIZER_PATH = (
     ROOT
     / "data"
@@ -31,11 +38,13 @@ TOKENIZER_PATH = (
     / "amor_tokenizer.json"
 )
 
+
 CHECKPOINT_PATH = (
     ROOT
     / "checkpoints"
     / "amor_10m_long.pt"
 )
+
 
 METRICS_PATH = (
     ROOT
@@ -45,12 +54,19 @@ METRICS_PATH = (
 )
 
 
-def set_seed(seed: int) -> None:
+def set_seed(
+    seed: int,
+) -> None:
 
-    torch.manual_seed(seed)
+    torch.manual_seed(
+        seed
+    )
 
     if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+
+        torch.cuda.manual_seed_all(
+            seed
+        )
 
 
 def evaluate(
@@ -74,38 +90,52 @@ def evaluate(
 
         for batch in dataloader:
 
-            batch = batch.to(device)
+            batch = batch.to(
+                device
+            )
 
             input_ids = batch[:, :-1]
+
             targets = batch[:, 1:]
 
-            logits = model(input_ids)
+            logits = model(
+                input_ids
+            )
 
             loss = loss_fn(
                 logits.reshape(
                     -1,
                     logits.size(-1),
                 ),
-                targets.reshape(-1),
+                targets.reshape(
+                    -1
+                ),
             )
 
             total_loss += loss.item()
+
             total_batches += 1
 
     if total_batches == 0:
+
         raise RuntimeError(
             "Evaluation dataloader is empty."
         )
 
-    return total_loss / total_batches
+    return (
+        total_loss
+        / total_batches
+    )
 
 
 def main() -> None:
 
     print("=" * 70)
+
     print(
         "AMOR 10M LONG TRAINING EXPERIMENT"
     )
+
     print("=" * 70)
 
     # ---------------------------------------------------------
@@ -115,22 +145,32 @@ def main() -> None:
     seed = 42
 
     batch_size = 4
+
     sequence_length = 128
 
     learning_rate = 3e-4
+
     min_learning_rate = 3e-5
+
     weight_decay = 0.1
 
     max_steps = 10_000
+
     warmup_steps = 100
 
     gradient_clip_norm = 1.0
+
     gradient_accumulation_steps = 4
+
     use_amp = True
 
     eval_interval = 500
 
-    set_seed(seed)
+    validation_fraction = 0.10
+
+    set_seed(
+        seed
+    )
 
     # ---------------------------------------------------------
     # Device
@@ -142,7 +182,9 @@ def main() -> None:
         else "cpu"
     )
 
-    print(f"\nDevice: {device}")
+    print(
+        f"\nDevice: {device}"
+    )
 
     if device.type == "cuda":
 
@@ -160,50 +202,76 @@ def main() -> None:
     # Configuration summary
     # ---------------------------------------------------------
 
-    print("\nTraining configuration:")
     print(
-        f"Batch size:                  {batch_size}"
+        "\nTraining configuration:"
     )
+
     print(
-        f"Sequence length:             {sequence_length}"
+        f"Batch size:                  "
+        f"{batch_size}"
     )
+
     print(
-        f"Learning rate:               {learning_rate}"
+        f"Sequence length:             "
+        f"{sequence_length}"
     )
+
     print(
-        f"Minimum learning rate:       {min_learning_rate}"
+        f"Learning rate:               "
+        f"{learning_rate}"
     )
+
     print(
-        f"Weight decay:                {weight_decay}"
+        f"Minimum learning rate:       "
+        f"{min_learning_rate}"
     )
+
     print(
-        f"Maximum steps:               {max_steps}"
+        f"Weight decay:                "
+        f"{weight_decay}"
     )
+
     print(
-        f"Warmup steps:                {warmup_steps}"
+        f"Maximum steps:               "
+        f"{max_steps}"
     )
+
+    print(
+        f"Warmup steps:                "
+        f"{warmup_steps}"
+    )
+
     print(
         f"Gradient clip norm:          "
         f"{gradient_clip_norm}"
     )
+
     print(
         "Gradient accumulation:       "
         f"{gradient_accumulation_steps}"
     )
+
     print(
-        f"AMP enabled:                 {use_amp}"
+        f"AMP enabled:                 "
+        f"{use_amp}"
     )
+
     print(
         f"Evaluation interval:         "
         f"{eval_interval}"
     )
 
+    print(
+        f"Validation fraction:         "
+        f"{validation_fraction}"
+    )
+
     # ---------------------------------------------------------
-    # 1. Encode corpus
+    # 1. Load documents
     # ---------------------------------------------------------
 
     print(
-        "\n[1/8] Encoding 500K corpus..."
+        "\n[1/8] Loading corpus documents..."
     )
 
     if not CORPUS_PATH.exists():
@@ -220,67 +288,135 @@ def main() -> None:
             f"{TOKENIZER_PATH}"
         )
 
-    token_ids = encode_jsonl_corpus(
-        str(CORPUS_PATH),
+    documents = load_jsonl_documents(
+        str(CORPUS_PATH)
+    )
+
+    print(
+        f"Documents: "
+        f"{len(documents):,}"
+    )
+
+    if len(documents) < 2:
+
+        raise RuntimeError(
+            "Not enough documents for "
+            "train/validation split."
+        )
+
+    # ---------------------------------------------------------
+    # 2. Document-level train/validation split
+    # ---------------------------------------------------------
+
+    print(
+        "\n[2/8] Creating document-level "
+        "train/validation split..."
+    )
+
+    generator = torch.Generator().manual_seed(
+        seed
+    )
+
+    indices = torch.randperm(
+        len(documents),
+        generator=generator,
+    ).tolist()
+
+    validation_size = max(
+        1,
+        int(
+            len(documents)
+            * validation_fraction
+        ),
+    )
+
+    training_indices = indices[
+        validation_size:
+    ]
+
+    validation_indices = indices[
+        :validation_size
+    ]
+
+    train_documents = [
+        documents[index]
+        for index in training_indices
+    ]
+
+    validation_documents = [
+        documents[index]
+        for index in validation_indices
+    ]
+
+    print(
+        f"Training documents:   "
+        f"{len(train_documents):,}"
+    )
+
+    print(
+        f"Validation documents: "
+        f"{len(validation_documents):,}"
+    )
+
+    # ---------------------------------------------------------
+    # 3. Encode train and validation separately
+    # ---------------------------------------------------------
+
+    print(
+        "\n[3/8] Encoding train/validation "
+        "documents..."
+    )
+
+    training_token_ids = encode_documents(
+        train_documents,
+        str(TOKENIZER_PATH),
+    )
+
+    validation_token_ids = encode_documents(
+        validation_documents,
         str(TOKENIZER_PATH),
     )
 
     print(
-        f"Token IDs: {len(token_ids):,}"
+        f"Training tokens:   "
+        f"{len(training_token_ids):,}"
     )
 
+    print(
+        f"Validation tokens: "
+        f"{len(validation_token_ids):,}"
+    )
+
+    if len(training_token_ids) < sequence_length:
+
+        raise RuntimeError(
+            "Training corpus is too short "
+            "for the requested sequence length."
+        )
+
+    if len(validation_token_ids) < sequence_length:
+
+        raise RuntimeError(
+            "Validation corpus is too short "
+            "for the requested sequence length."
+        )
+
     # ---------------------------------------------------------
-    # 2. Dataset
+    # 4. Create datasets
     # ---------------------------------------------------------
 
     print(
-        "\n[2/8] Creating dataset..."
+        "\n[4/8] Creating datasets..."
     )
 
-    dataset = TokenSequenceDataset(
-        token_ids=token_ids,
+    train_dataset = TokenSequenceDataset(
+        token_ids=training_token_ids,
         sequence_length=sequence_length,
     )
 
-    print(
-        f"Training sequences: "
-        f"{len(dataset):,}"
-    )
-
-    if len(dataset) < 2:
-
-        raise RuntimeError(
-            "Not enough training sequences."
-        )
-
-    # ---------------------------------------------------------
-    # 3. Train/validation split
-    # ---------------------------------------------------------
-
-    print(
-        "\n[3/8] Creating train/validation split..."
-    )
-
-    validation_size = max(
-        1,
-        int(len(dataset) * 0.10),
-    )
-
-    training_size = (
-        len(dataset) - validation_size
-    )
-
-    train_dataset, validation_dataset = (
-        random_split(
-            dataset,
-            [
-                training_size,
-                validation_size,
-            ],
-            generator=torch.Generator().manual_seed(
-                seed
-            ),
-        )
+    validation_dataset = TokenSequenceDataset(
+        token_ids=validation_token_ids,
+        sequence_length=sequence_length,
     )
 
     print(
@@ -293,12 +429,24 @@ def main() -> None:
         f"{len(validation_dataset):,}"
     )
 
+    if len(train_dataset) < 2:
+
+        raise RuntimeError(
+            "Not enough training sequences."
+        )
+
+    if len(validation_dataset) < 1:
+
+        raise RuntimeError(
+            "Not enough validation sequences."
+        )
+
     # ---------------------------------------------------------
-    # 4. DataLoaders
+    # 5. DataLoaders
     # ---------------------------------------------------------
 
     print(
-        "\n[4/8] Creating DataLoaders..."
+        "\n[5/8] Creating DataLoaders..."
     )
 
     train_loader = DataLoader(
@@ -324,11 +472,11 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # 5. Model
+    # 6. Model
     # ---------------------------------------------------------
 
     print(
-        "\n[5/8] Creating AMOR model..."
+        "\n[6/8] Creating AMOR model..."
     )
 
     config = AMORConfig(
@@ -340,7 +488,9 @@ def main() -> None:
         max_seq_len=sequence_length,
     )
 
-    model = AMORModel(config)
+    model = AMORModel(
+        config
+    )
 
     parameter_count = sum(
         parameter.numel()
@@ -353,11 +503,11 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # 6. Optimizer / scheduler / trainer
+    # 7. Optimizer / scheduler / trainer
     # ---------------------------------------------------------
 
     print(
-        "\n[6/8] Creating optimizer, "
+        "\n[7/8] Creating optimizer, "
         "scheduler and trainer..."
     )
 
@@ -387,15 +537,19 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # 7. Training with periodic validation
+    # Training
     # ---------------------------------------------------------
 
     print(
-        "\n[7/8] Running 500K long training..."
+        "\nRunning corrected 10M long training..."
     )
-    print("-" * 70)
+
+    print(
+        "-" * 70
+    )
 
     results = []
+
     metrics = []
 
     best_validation_loss = float(
@@ -450,9 +604,8 @@ def main() -> None:
                 current_step
             )
 
-            # Ignore initial
-            # accumulation state.
             if current_step == 0:
+
                 continue
 
             results.append(
@@ -471,9 +624,7 @@ def main() -> None:
 
                 validation_loss = evaluate(
                     model=model,
-                    dataloader=(
-                        validation_loader
-                    ),
+                    dataloader=validation_loader,
                     device=device,
                 )
 
@@ -491,7 +642,7 @@ def main() -> None:
                 )
 
                 print(
-                    f"Step {current_step:04d} | "
+                    f"Step {current_step:05d} | "
                     f"Train Loss: "
                     f"{result.loss:.6f} | "
                     f"Validation Loss: "
@@ -519,6 +670,10 @@ def main() -> None:
                         f"{best_validation_loss:.6f}"
                     )
 
+    # ---------------------------------------------------------
+    # Training complete
+    # ---------------------------------------------------------
+
     print(
         "\nTraining complete."
     )
@@ -527,6 +682,12 @@ def main() -> None:
         f"Final training step: "
         f"{trainer.step_count}"
     )
+
+    if not results:
+
+        raise RuntimeError(
+            "No training results were recorded."
+        )
 
     print(
         f"Final training loss: "
@@ -558,7 +719,7 @@ def main() -> None:
 
     metrics_payload = {
         "experiment": (
-            "AMOR-10M-long"
+            "AMOR-10M-long-document-split"
         ),
         "metrics": metrics,
         "best_validation_loss": (
@@ -570,6 +731,18 @@ def main() -> None:
         ),
         "final_step": (
             trainer.step_count
+        ),
+        "training_documents": (
+            len(train_documents)
+        ),
+        "validation_documents": (
+            len(validation_documents)
+        ),
+        "training_tokens": (
+            len(training_token_ids)
+        ),
+        "validation_tokens": (
+            len(validation_token_ids)
         ),
     }
 
@@ -585,11 +758,12 @@ def main() -> None:
         )
 
     print(
-        f"Metrics: {METRICS_PATH}"
+        f"Metrics: "
+        f"{METRICS_PATH}"
     )
 
     # ---------------------------------------------------------
-    # 8. Final validation
+    # Final validation
     # ---------------------------------------------------------
 
     print(
@@ -612,7 +786,7 @@ def main() -> None:
     # ---------------------------------------------------------
 
     print(
-        "\nSaving 500K long-training checkpoint..."
+        "\nSaving corrected 10M checkpoint..."
     )
 
     save_checkpoint(
@@ -623,13 +797,26 @@ def main() -> None:
         step=trainer.step_count,
         config={
             "experiment": (
-                "AMOR-10M-long"
+                "AMOR-10M-long-document-split"
             ),
             "corpus": (
                 "AMOR-10M-corpus"
             ),
-            "token_count": len(
-                token_ids
+            "token_count": (
+                len(training_token_ids)
+                + len(validation_token_ids)
+            ),
+            "training_token_count": (
+                len(training_token_ids)
+            ),
+            "validation_token_count": (
+                len(validation_token_ids)
+            ),
+            "training_documents": (
+                len(train_documents)
+            ),
+            "validation_documents": (
+                len(validation_documents)
             ),
             "sequence_length": (
                 sequence_length
@@ -658,6 +845,9 @@ def main() -> None:
             "evaluation_interval": (
                 eval_interval
             ),
+            "validation_fraction": (
+                validation_fraction
+            ),
             "best_validation_loss": (
                 best_validation_loss
             ),
@@ -676,7 +866,7 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # Final validation checks
+    # Final checks
     # ---------------------------------------------------------
 
     if (
@@ -687,15 +877,6 @@ def main() -> None:
         raise RuntimeError(
             "Training did not complete "
             "the requested number of steps."
-        )
-
-    if (
-        trainer.step_count
-        != max_steps
-    ):
-
-        raise RuntimeError(
-            "Trainer step count is incorrect."
         )
 
     if not metrics:
